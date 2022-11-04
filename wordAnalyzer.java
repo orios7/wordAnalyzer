@@ -15,6 +15,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.*;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
 
 public class wordAnalyzer extends Application {
 
@@ -43,13 +50,17 @@ public class wordAnalyzer extends Application {
     //used to store sorted words from wordsArray
     Object words;
 
-//10/10/2022 ADDED method below for testing
+    // Variables below are used for connecting the wordoccurrances mySQL database
 
-    public ArrayList<String> returnWordArray() {
 
-        return wordsArray;
 
-    }
+    /***
+     * The poemRetrieval() method retrieves the title and body from a free online eBook (#45484) containing a poem by Edgar Allan Poe called the Raven.
+     * The eBook was created by the Gutenberg organization and is located at the following address: https://www.gutenberg.org/files/1065/1065-h/1065-h.htm
+     *
+     * @return This method returns a String containing the poem title and body, which is extracted from the poem using Jsoup.
+     * @throws IOException An exception might occur if the website mentioned above is unavailable.
+     */
 
     public String poemRetrieval() throws IOException {
 
@@ -60,24 +71,40 @@ public class wordAnalyzer extends Application {
         Elements title = doc.getElementsByTag("h1");
         Elements body = doc.getElementsByTag("p");
 
-        //for-each loop used to append poem words to StringBuilder.
-        for (Element b : body) {
 
-            strBu.append(b.text());
-        }
-        //for-each loop to append title to StringBuilder.
-        for (Element t : title) {
+            //for-each loop used to append poem words to StringBuilder and add words to the wordoccurrences mySQL database.
+            for (Element b : body) {
 
-            strBu.append(t.text());
-        }
+                strBu.append(b.text());
+            }
+            //for-each loop to append title to StringBuilder  and add words to the wordoccurrences mySQL database.
+            for (Element t : title) {
+
+                strBu.append(t.text());
+            }
 
         str = String.valueOf(strBu);
-
 
     return str;
     }
 
-    public ArrayList<String> strScanner(String str) throws IOException {
+    /***
+     * The strScanner(String str) accepts a String (str).  The start() method calls this method and passes the poemRetrieval() method as a parameter.
+     * This method then parses the string to determine the occurrence of each of the words and the number of times that the words occur in the poem.
+     * Each word found is stored in the wordsArray arrayList. The count of each word is stored in the freqArray arrayList.
+     * The step above is done once non-alpha numeric characters are removed.
+     *
+     * @param str  This parameter accepts a string provided by the poemRetrieval() method.
+     * @return returns the wordsArray arrayList.
+     */
+    public ArrayList<String> strScanner(String str) throws SQLException  {
+
+        Connection connect = null;
+        Statement statement = null;
+
+        PreparedStatement preparedStatement = null;
+        ResultSet resultSet = null;
+
 
         //scanner used for parsing data stored in StringBuilder.
         fileWord = new Scanner(str);
@@ -104,6 +131,15 @@ public class wordAnalyzer extends Application {
             } else {
                 wordsArray.add(cleanWord);
                 freqArray.add(1);
+
+                connect = DriverManager.getConnection("jdbc:mysql://localhost/wordoccurrences?" + "user=root&password=password");
+                preparedStatement = connect
+                        .prepareStatement("insert into  wordoccurrences.word values (default, ?)");
+
+                preparedStatement.setString(1, cleanWord);
+                preparedStatement.executeUpdate();
+
+           //// REMEMBER TO CLOSE CONNECTIONS
             }
         }
         //for loop used to remove empty spaces in both wordsArray and freqArray ArrayLists.
@@ -118,6 +154,11 @@ public class wordAnalyzer extends Application {
         return wordsArray;
     }
 
+    /***
+     * The objArrayCreator() method serves to store the Integer ArrayList and String ArrayList as SortA ArrayList object.
+     *
+     * @return Returns object ArrayList of type SortA containing the freqArray ArrayList values (word count) and wordsArray ArrayList (poem Words)
+     */
     public ArrayList<sortA>  objArrayLCreator() {
         for (int i = 0; i < wordsArray.size(); i++) {
             so.add(new sortA(freqArray.get(i), wordsArray.get(i)));
@@ -125,6 +166,10 @@ public class wordAnalyzer extends Application {
         return so;
     }
 
+    /***
+     *  The consolePrinter() method prints the contents of the first 20 words and word counts sorted by word count in the so Arraylist
+     *
+     */
     public void consolePrinter() {
 
         //System.out.println(freqArray);
@@ -156,6 +201,12 @@ public class wordAnalyzer extends Application {
         System.out.println("Pairs: " + setBuilder());
     }
 
+    /***
+     * The setBuilder() method returns the first 20 values of the LinkedHashMap named set.  This LinkedHashMap contains the
+     * first 20 most common words sorted by word count in descending order.
+     *
+     * @return Returns the LinkedHashMap named set.
+     */
     public LinkedHashMap<String, Integer> setBuilder() {
 
         for (int i = 0; i < 20; i++) {  // i < so.size()   i < 20
@@ -170,8 +221,16 @@ public class wordAnalyzer extends Application {
         return set;
     }
 
+    /***
+     *  The start() method works to orchestrate the all the methods (poemRetrival(), strScanner(), objArrayCreator(), consolePrinter() and setBuilder()
+     *  to produce a list of the 20 most repeated words in the poem.
+     *
+     * @param stage The stage parameter is used to create a javafx window.
+     * @throws IOException  IO exception may be thrown if the poem is inaccessible at the website https://www.gutenberg.org/files/1065/1065-h/1065-h.htm
+     */
+
     @Override
-    public void start(Stage stage) throws IOException {
+    public void start(Stage stage) throws IOException, SQLException {
 
         // Retrieves poem data from website using poemRetrieval() method which is passed as argument to the strBldScanner method for parsing.
         strScanner(poemRetrieval());
@@ -223,12 +282,23 @@ public class wordAnalyzer extends Application {
         stage.show();
     }
 
+    /**
+     *The main method calls the start method to begin the program.
+     * @param args
+     * @throws IOException
+     */
+
     public static void main(String[] args) throws IOException {
 
         launch();
     }
 }
 
+/***
+ * The sortA class implements the comparable class to sort the object Array containing the poem words and word counts by count.
+ *
+ *
+ */
 class sortA implements Comparable<sortA> {
     String w;
     int c;
@@ -246,3 +316,4 @@ class sortA implements Comparable<sortA> {
         return 0;
     }
 }
+
