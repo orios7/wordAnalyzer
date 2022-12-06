@@ -44,6 +44,9 @@ public class wordAnalyzer extends Application {
     //LinkedHashMap used to store sorted values of both wordsArray and freqArray
     LinkedHashMap<String, Integer> set = new LinkedHashMap<>();
 
+    //LinkedHashMap used to store values from the mySQL database
+    LinkedHashMap<String, Integer> setTwo = new LinkedHashMap<>();
+
     //used to store sorted word counts from freqArray
     Object sum = null;
 
@@ -100,10 +103,10 @@ public class wordAnalyzer extends Application {
     public ArrayList<String> strScanner(String str) throws SQLException  {
 
         Connection connect = null;
-        Statement statement = null;
+        //Statement statement = null;
 
         PreparedStatement preparedStatement = null;
-        ResultSet resultSet = null;
+        //ResultSet resultSet = null;
 
 
         //scanner used for parsing data stored in StringBuilder.
@@ -121,8 +124,16 @@ public class wordAnalyzer extends Application {
             //String to store words with non-alphameric characters removed in uppercase.
             String cleanWord = word.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
 
+            connect = DriverManager.getConnection("jdbc:mysql://localhost/wordoccurrences?" + "user=root&password=password");
+            preparedStatement = connect
+                .prepareStatement("INSERT INTO word(words, frequencies) VALUES (?, 1) ON DUPLICATE KEY UPDATE frequencies = frequencies + 1;");
+
+            preparedStatement.setString(1, cleanWord);
+            preparedStatement.executeUpdate();
+
             //If statement to search for word provided by the scanner in the wordsArray ArrayList.
             //If the word is found the corresponding index in the freqArray ArrayList is updated
+
             if (wordsArray.contains(cleanWord)) {
                 int arrayIndex = wordsArray.indexOf(cleanWord);
                 freqArray.set(arrayIndex, freqArray.get(arrayIndex) + 1);
@@ -132,14 +143,6 @@ public class wordAnalyzer extends Application {
                 wordsArray.add(cleanWord);
                 freqArray.add(1);
 
-                connect = DriverManager.getConnection("jdbc:mysql://localhost/wordoccurrences?" + "user=root&password=password");
-                preparedStatement = connect
-                        .prepareStatement("insert into  wordoccurrences.word values (default, ?)");
-
-                preparedStatement.setString(1, cleanWord);
-                preparedStatement.executeUpdate();
-
-           //// REMEMBER TO CLOSE CONNECTIONS
             }
         }
         //for loop used to remove empty spaces in both wordsArray and freqArray ArrayLists.
@@ -150,6 +153,11 @@ public class wordAnalyzer extends Application {
                 freqArray.remove(i);
             }
         }
+        //mySQL statement to delete row containing empty spaces.
+        preparedStatement = connect
+                .prepareStatement("DELETE FROM word WHERE words='';");
+        preparedStatement.executeUpdate();
+        connect.close();
 
         return wordsArray;
     }
@@ -170,7 +178,7 @@ public class wordAnalyzer extends Application {
      *  The consolePrinter() method prints the contents of the first 20 words and word counts sorted by word count in the so Arraylist
      *
      */
-    public void consolePrinter() {
+    public void consolePrinter() throws SQLException {
 
         //System.out.println(freqArray);
        // System.out.println(wordsArray);
@@ -197,8 +205,42 @@ public class wordAnalyzer extends Application {
 
         //Prints out LinkedHashMap
         System.out.println("");
-        System.out.println("");
+        System.out.println("LinkedHashMap output:");
         System.out.println("Pairs: " + setBuilder());
+
+        Connection connect = null;
+        Statement statement = null;
+
+        PreparedStatement preparedStatement = null;
+        ResultSet resultSet = null;
+
+        //Connect to mySQL database
+
+        connect = DriverManager.getConnection("jdbc:mysql://localhost/wordoccurrences?" + "user=root&password=password");
+
+        statement = connect.createStatement();
+
+        //mySQL statement to sort the word table in descending order by fequency and limit results to 20 rows.
+
+        resultSet = statement.executeQuery("SELECT * FROM word ORDER BY frequencies DESC LIMIT 20;");
+
+        System.out.println ("");
+        System.out.println ("Database Output:");
+        System.out.println("");
+
+        // While loop to print the contents of the mySQL database to the console.
+        while (resultSet.next()) {
+
+            String words = resultSet.getString("words");
+            int frequency = resultSet.getInt("frequencies");
+
+            setTwo.put(words, frequency);
+
+            System.out.printf("%-10s %20s\n", words, frequency);
+
+        }
+        statement.close();
+
     }
 
     /***
@@ -247,6 +289,7 @@ public class wordAnalyzer extends Application {
         //Labels for
         Label label = new Label("The wordAnalyzer program determines the words used and word count in \"The Raven\" by Edgar Allan Poe");
         Label labelTwo = new Label("");
+        Label labelThree = new Label("");
         Button btn = new Button("Click here to display the words and word counts");
 
         //Positions the first label on the scene.
@@ -255,25 +298,31 @@ public class wordAnalyzer extends Application {
         //Positions the labelTwo on the scene.
         labelTwo.setTranslateX(30);
         labelTwo.setTranslateY(150);
+
+        //Positions the labelThree on the scene.
+        labelThree.setTranslateX(30);
+        labelThree.setTranslateY(200);
+
         //Positions the btn button on the scene.
         btn.setTranslateX(350);
         btn.setTranslateY(80);
 
         Group root = new Group();
         //Adds labels and btn to the scene
-        root.getChildren().addAll(label, labelTwo, btn);
+        root.getChildren().addAll(label, labelTwo, labelThree, btn);
         //Event handler to display the lhmtoString String (LinkedHashMap (set) converted to String) to the blank labelTwo label
         EventHandler<MouseEvent> eventHandler = new EventHandler<MouseEvent>() {
             @Override
             public void handle(MouseEvent e) {
-                labelTwo.setText(lhmtoString);
+                labelTwo.setText("LinkedHashMap output: \n" + lhmtoString);
+                labelThree.setText("Database output: \n" + String.valueOf(setTwo));
 
             }
         };
         //Event handler to display contents of the LinkedHashMap set which was converted to String.
         btn.addEventHandler(javafx.scene.input.MouseEvent.MOUSE_CLICKED, eventHandler);
         //Sets the size of the scene.
-        Scene scene = new Scene(root, 1100, 250);
+        Scene scene = new Scene(root, 1300, 250);
         //Sets scene title
         stage.setTitle("wordAnalyzer");
         //creates scene
